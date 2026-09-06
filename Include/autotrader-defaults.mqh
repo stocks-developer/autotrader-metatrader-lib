@@ -1,3 +1,6 @@
+#ifndef AUTOTRADER_AUTOTRADER_DEFAULTS_MQH
+#define AUTOTRADER_AUTOTRADER_DEFAULTS_MQH
+
 /************************************************
 * Contains default value functions.
 *
@@ -106,3 +109,5 @@ string defaultComments() {
 Variety defaultVariety() {
 	return REGULAR;
 }
+
+#endif

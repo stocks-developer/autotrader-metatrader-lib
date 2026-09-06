@@ -17,7 +17,7 @@ The **AutoTrader Web MetaTrader library** lets you place orders from your MT4 or
 - **MT4 and MT5.** One library works with both platforms.
 - **Single or multi-account.** Send an order to one account or many at once.
 - **Full order control.** Regular, bracket and cover orders, plus cancel.
-- **Bridge connection.** Your strategy writes order requests locally, and the AutoTrader Desktop Client sends the real instructions on to your broker.
+- **Direct connection.** Your strategy talks to AutoTrader Web over the internet. There is nothing else to install and nothing that has to keep running.
 
 ## What is AutoTrader Web?
 
@@ -51,15 +51,19 @@ AutoTrader Web works with **40+ Indian brokers**:
 
 ## Quick start
 
-MetaTrader is a **bridge** client, so it works together with the AutoTrader Desktop Client running on your computer.
+MetaTrader talks to AutoTrader Web directly. Works with **MetaTrader 5**, and with **MetaTrader 4 from build 600**.
 
-1. Install and start the [AutoTrader Desktop Client](https://stocksdeveloper.in/documentation/client-setup/desktop-client/).
-2. On its **Settings** tab, click **MetaTrader Library Install** (it locates your MetaTrader folders automatically). You can also install manually from [`master.zip`](https://github.com/stocks-developer/autotrader-metatrader-lib/archive/master.zip).
-3. Include the library at the top of your strategy:
+1. Sign in at [webx.stocksdeveloper.in](https://webx.stocksdeveloper.in/) and go to **Tools -> Library**.
+2. Download the MetaTrader library. Your API key is already inside the download, which is why it asks for your password.
+3. In MetaTrader open **File -> Open Data Folder**, then extract the zip into the `MQL5` folder (`MQL4` on MetaTrader 4).
+4. Allow our address: **Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL**, then add `https://api.stocksdeveloper.in`. Without this MetaTrader blocks every request and nothing is sent.
+5. Include the library at the top of your strategy:
 
 ```cpp
-#include <autotrader.mqh>
+#include <autotrader-http.mqh>
 ```
+
+> Run your strategy as an Expert Advisor or a Script. MetaTrader does not allow web requests from a custom indicator, and the Strategy Tester cannot make them at all.
 
 4. Place an order. The same call works on every supported broker:
 
@@ -92,7 +96,7 @@ Full step-by-step guide: **[MetaTrader library setup](https://stocksdeveloper.in
 | 📘 Documentation | https://stocksdeveloper.in/documentation/getting-started/ |
 | 🧩 API reference | https://stocksdeveloper.in/documentation/api/ |
 | ⚙️ MetaTrader library setup | https://stocksdeveloper.in/documentation/client-setup/metatrader-library/ |
-| 🖥️ Desktop Client setup | https://stocksdeveloper.in/documentation/client-setup/desktop-client/ |
+| 🖥️ MetaTrader library setup | https://stocksdeveloper.in/documentation/client-setup/metatrader-library/ |
 | 🆓 Start free (1-month trial) | https://webx.stocksdeveloper.in/register |
 | ✉️ Contact us | https://stocksdeveloper.in/contact/ |
 

@@ -1,3 +1,6 @@
+#ifndef AUTOTRADER_CONVERSION_UTIL_MQH
+#define AUTOTRADER_CONVERSION_UTIL_MQH
+
 /************************************************
 * Utility functions data conversion.
 *
@@ -21,3 +24,5 @@ long convertDateTimeToMillisSinceEpoch(datetime time) {
    long millis = time * 1000;
 	return millis;
 }
+
+#endif
