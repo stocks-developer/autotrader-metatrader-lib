@@ -223,16 +223,19 @@ string atUrlEncode(const string text) {
 */
 string atPipeField(const string line, const int index) {
 	string rest = line;
+	string result = "";
 
 	for(int i = 1; i <= index; i++) {
 		int position = StringFind(rest, "|");
 
 		if(i == index) {
 			if(position >= 0) {
-				return StringSubstr(rest, 0, position);
+				result = StringSubstr(rest, 0, position);
+			} else {
+				result = rest;
 			}
 
-			return rest;
+			break;
 		}
 
 		if(position >= 0) {
@@ -243,7 +246,24 @@ string atPipeField(const string line, const int index) {
 		}
 	}
 
-	return "";
+	/*
+	* The last field is trimmed because it carries whatever line ending the
+	* reader left on the reply, and that field is the broker's order id.
+	*
+	* An untrimmed id is still returned by placeOrder() and still looks right
+	* when printed, but every getOrderStatus()/getOrderPrice() call made with it
+	* silently returns blank, because no row matches an id with a newline stuck
+	* to it. That is exactly what happened in the AmiBroker library, whose
+	* reader hands back each line WITH its newline.
+	*
+	* WebRequest gives MetaTrader the raw body rather than lines, so this is a
+	* guard rather than a fix for an observed fault -- but the cost of being
+	* wrong about that is a whole class of silently blank reads.
+	*/
+	StringTrimLeft(result);
+	StringTrimRight(result);
+
+	return result;
 }
 
 /**
@@ -563,8 +583,30 @@ string atCacheBody[];
 
 int atCacheRows[];
 
+/*
+* The CSV header row, KEPT rather than discarded.
+*
+* It names every column, which is what lets a lookup ask for "QUANTITY"
+* instead of counting to seven. Throwing it away is what let the holdings
+* getters match the broker symbol column while the caller passed an
+* independent symbol -- a silent wrong answer that no amount of reading the
+* code would show.
+*/
+string atCacheHeader[];
+
 /* True once a slot has been filled, so an unfetched slot is never trusted. */
 bool atCacheFilled[];
+
+/*
+* Resolved column positions, as "slot|NAME" -> position.
+*
+* A strategy may ask for twenty fields on every tick, and re-scanning the
+* header each time would be twenty scans for an answer that never changes
+* within a session.
+*/
+string atColumnKeys[];
+
+int atColumnPos[];
 
 /**
 * Finds the slot for one account and dataset, creating it the first time.
@@ -584,6 +626,7 @@ int atCacheSlot(const string pseudoAccount, const string dataset) {
 	ArrayResize(atCacheStatus, total + 1);
 	ArrayResize(atCacheBody, total + 1);
 	ArrayResize(atCacheRows, total + 1);
+	ArrayResize(atCacheHeader, total + 1);
 	ArrayResize(atCacheFilled, total + 1);
 
 	atCacheKeys[total] = key;
@@ -591,6 +634,7 @@ int atCacheSlot(const string pseudoAccount, const string dataset) {
 	atCacheStatus[total] = "";
 	atCacheBody[total] = "";
 	atCacheRows[total] = 0;
+	atCacheHeader[total] = "";
 	atCacheFilled[total] = false;
 
 	return total;
@@ -613,10 +657,13 @@ int atTtlFor(const string dataset) {
 }
 
 /**
-* Strips the header row and stores the rest, returning how many rows were kept.
+* Separates the header row from the records, returning how many records were
+* kept.
 *
-* The header is dropped so row 1 is the first real record and the column
-* numbers used by the get...() functions match the file based library exactly.
+* Row 1 of the stored body is the first real record, so the column numbers used
+* by the get...() functions match the file based library exactly. The header
+* itself is no longer thrown away: it is kept on the slot, which is what lets
+* atColumnOf() resolve a column NAME.
 */
 int atStoreRows(const int slot, const string body) {
 	string rest = body;
@@ -627,11 +674,18 @@ int atStoreRows(const int slot, const string body) {
 	int position = StringFind(rest, "\n");
 
 	if(position < 0) {
-		/* Header only, or a single line with nothing after it: no data rows. */
+		/*
+		* Header only, or a single line with nothing after it: no data rows,
+		* but the header is still worth keeping so a name can be resolved
+		* against an empty dataset without a re-fetch.
+		*/
+		atCacheHeader[slot] = rest;
 		atCacheBody[slot] = "";
 		atCacheRows[slot] = 0;
 		return 0;
 	}
+
+	atCacheHeader[slot] = StringSubstr(rest, 0, position);
 
 	string rows = StringSubstr(rest, position + 1);
 
@@ -810,6 +864,216 @@ string atReadRowColumn(const string pseudoAccount, const string dataset,
 	}
 
 	return atCsvField(atBodyLine(atCacheBody[slot], row), column);
+}
+
+/***************************** LOOKUP BY NAME ********************************/
+
+/**
+* A column name reduced to its comparable form: upper case, no padding.
+*
+* StringToUpper and the trims all work in place and return a flag rather than
+* the string, so the copy is deliberate, not an oversight.
+*/
+string atNormaliseName(const string text) {
+	string result = text;
+
+	StringTrimLeft(result);
+	StringTrimRight(result);
+	StringToUpper(result);
+
+	return result;
+}
+
+/**
+* Position of a named column in a dataset, 1 based. 0 when there is no such
+* column.
+*
+* This is the whole point of keeping the header. Every lookup that identifies a
+* row goes through a NAME, so a change to the server's column order cannot
+* quietly make a getter return the wrong field -- the worst it can do is return
+* 0 here, which is visible.
+*
+* The answer is cached per slot, because a strategy may ask for twenty fields
+* on every tick and re-scanning the header each time would be twenty scans for
+* an answer that never changes within a session.
+*
+* Names are compared without regard to case, so "quantity" and "QUANTITY" are
+* the same column.
+*/
+int atColumnOf(const string pseudoAccount, const string dataset,
+	const string fieldName) {
+
+	atEnsureFresh(pseudoAccount, dataset);
+
+	int slot = atCacheSlot(pseudoAccount, dataset);
+	string wanted = atNormaliseName(fieldName);
+	string key = IntegerToString(slot) + "|" + wanted;
+	int total = ArraySize(atColumnKeys);
+
+	for(int i = 0; i < total; i++) {
+		if(atColumnKeys[i] == key) {
+			/*
+			* -1 records "looked and it is not there", so a missing column is
+			* not re-scanned on every call.
+			*/
+			if(atColumnPos[i] < 0) {
+				return 0;
+			}
+
+			return atColumnPos[i];
+		}
+	}
+
+	int found = 0;
+
+	for(int i = 1; i <= AT_HTTP_MAX_COLUMNS; i++) {
+		string colName = atNormaliseName(atCsvField(atCacheHeader[slot], i));
+
+		if(colName == "") {
+			/* Past the end of the header. */
+			break;
+		}
+
+		if(colName == wanted) {
+			found = i;
+			break;
+		}
+	}
+
+	/*
+	* A miss is only worth remembering when there WAS a header to miss in. An
+	* account with no orders yet gets an empty reply, and an empty reply carries
+	* no header at all -- the server has no rows to write one from. Remembering
+	* "not there" at that moment would keep the column unresolvable for the rest
+	* of the session, so the first order placed afterwards could never be read
+	* back.
+	*/
+	if(found == 0 && atCacheHeader[slot] == "") {
+		return 0;
+	}
+
+	ArrayResize(atColumnKeys, total + 1);
+	ArrayResize(atColumnPos, total + 1);
+
+	atColumnKeys[total] = key;
+
+	if(found == 0) {
+		atColumnPos[total] = -1;
+	} else {
+		atColumnPos[total] = found;
+	}
+
+	return found;
+}
+
+/**
+* One field of one row, addressed by column NAME. Blank when the dataset has no
+* such column or the row is out of range.
+*/
+string atFieldByName(const string pseudoAccount, const string dataset,
+	const int row, const string fieldName) {
+
+	int column = atColumnOf(pseudoAccount, dataset, fieldName);
+
+	if(column < 1) {
+		return "";
+	}
+
+	return atReadRowColumn(pseudoAccount, dataset, row, column);
+}
+
+/**
+* The first row whose named column equals a value, as a row number. 0 when
+* nothing matches.
+*/
+int atFindRowByName(const string pseudoAccount, const string dataset,
+	const string fieldName, const string value) {
+
+	int column = atColumnOf(pseudoAccount, dataset, fieldName);
+
+	if(column < 1) {
+		return 0;
+	}
+
+	int total = atRowCount(pseudoAccount, dataset);
+	int slot = atCacheSlot(pseudoAccount, dataset);
+
+	for(int i = 1; i <= total; i++) {
+		if(value == atCsvField(atBodyLine(atCacheBody[slot], i), column)) {
+			return i;
+		}
+	}
+
+	return 0;
+}
+
+/**
+* The first row matching TWO named columns at once. 0 when nothing matches.
+*/
+int atFindRowByName2(const string pseudoAccount, const string dataset,
+	const string field1, const string value1,
+	const string field2, const string value2) {
+
+	int col1 = atColumnOf(pseudoAccount, dataset, field1);
+	int col2 = atColumnOf(pseudoAccount, dataset, field2);
+
+	if(col1 < 1 || col2 < 1) {
+		return 0;
+	}
+
+	int total = atRowCount(pseudoAccount, dataset);
+	int slot = atCacheSlot(pseudoAccount, dataset);
+
+	for(int i = 1; i <= total; i++) {
+		string line = atBodyLine(atCacheBody[slot], i);
+
+		if(value1 == atCsvField(line, col1) &&
+			value2 == atCsvField(line, col2)) {
+
+			return i;
+		}
+	}
+
+	return 0;
+}
+
+/**
+* The first row matching FOUR named columns at once.
+*
+* A position has no id of its own -- it is identified by category, type,
+* exchange and symbol together.
+*/
+int atFindRowByName4(const string pseudoAccount, const string dataset,
+	const string field1, const string value1,
+	const string field2, const string value2,
+	const string field3, const string value3,
+	const string field4, const string value4) {
+
+	int col1 = atColumnOf(pseudoAccount, dataset, field1);
+	int col2 = atColumnOf(pseudoAccount, dataset, field2);
+	int col3 = atColumnOf(pseudoAccount, dataset, field3);
+	int col4 = atColumnOf(pseudoAccount, dataset, field4);
+
+	if(col1 < 1 || col2 < 1 || col3 < 1 || col4 < 1) {
+		return 0;
+	}
+
+	int total = atRowCount(pseudoAccount, dataset);
+	int slot = atCacheSlot(pseudoAccount, dataset);
+
+	for(int i = 1; i <= total; i++) {
+		string line = atBodyLine(atCacheBody[slot], i);
+
+		if(value1 == atCsvField(line, col1) &&
+			value2 == atCsvField(line, col2) &&
+			value3 == atCsvField(line, col3) &&
+			value4 == atCsvField(line, col4)) {
+
+			return i;
+		}
+	}
+
+	return 0;
 }
 
 /******************************** COMMANDS ***********************************/

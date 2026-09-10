@@ -923,47 +923,17 @@ bool isOrderCancelled(string pseudoAccount, string orderId) {
 }
 
 /*
-* Retrieve order variety.
+* getOrderVariety, getOrderIndependentExchange, getOrderTradeType,
+* getOrderOrderType, getOrderProductType and getOrderValidity were defined a
+* SECOND time here, returning a string, while the versions above return the
+* enum. MQL will not compile a function defined twice with two return types,
+* so the whole library failed to build and no strategy could use it at all.
+*
+* The string copies were removed rather than the enum ones because the enum
+* versions are what autotrader.mqh returns, and this library's promise is that
+* a strategy moving across keeps the same names, arguments and meaning. Both
+* copies read the same columns, so nothing else changes.
 */
-string getOrderVariety(string pseudoAccount, string orderId) {
-	return readOrderColumn(pseudoAccount, orderId, 6);
-}
-
-/*
-* Retrieve order's broker independent exchange.
-*/
-string getOrderIndependentExchange(string pseudoAccount, string orderId) {
-	return readOrderColumn(pseudoAccount, orderId, 7);
-}
-
-/*
-* Retrieve order trade type.
-*/
-string getOrderTradeType(string pseudoAccount, string orderId) {
-	return readOrderColumn(pseudoAccount, orderId, 9);
-}
-
-/*
-* Retrieve order type.
-*/
-string getOrderOrderType(string pseudoAccount, string orderId) {
-	return readOrderColumn(pseudoAccount, orderId, 10);
-}
-
-/*
-* Retrieve order product type.
-*/
-string getOrderProductType(string pseudoAccount, string orderId) {
-	return readOrderColumn(pseudoAccount, orderId, 11);
-}
-
-/*
-* Retrieve order validity.
-*/
-string getOrderValidity(string pseudoAccount, string orderId) {
-	return readOrderColumn(pseudoAccount, orderId, 19);
-}
-
 
 /*****************************************************************************/
 /*********************** POSITION DETAIL FUNCTIONS - START ***********************/
@@ -1542,6 +1512,7 @@ double getMarginUnrealisedMtmCommodity(string pseudoAccount) {
 */
 double getMarginUnrealisedMtmAll(string pseudoAccount) {
 	return StringToDouble(readMarginColumn(pseudoAccount, AT_MARGIN_ALL, 18));
+}
 
 /*****************************************************************************/
 /*********************** HOLDING DETAIL FUNCTIONS - START ***********************/
@@ -1550,13 +1521,33 @@ double getMarginUnrealisedMtmAll(string pseudoAccount) {
 /*
 * Reads holdings and returns a column value for the given symbol.
 *
-* Matched on column 5, SYMBOL. The file based library matched on column 3,
-* which is the holding's numeric id -- so a symbol never matched anything and
-* every getHolding...() call returned blank. Fixed here rather than carried
-* over.
+* Match on the INDEPENDENT symbol, by name.
+*
+* This used to match column 5, copied across from the file based library. In
+* the file the Desktop Client wrote, column 5 was the independent symbol. In
+* the server's holdings CSV column 5 is the BROKER symbol -- "IOC-EQ" where the
+* caller passes "IOC" -- so every holding getter matched nothing and returned 0
+* or blank for an account that did hold the stock. Nothing in the code showed
+* it, because 0 is also the honest answer for a stock you do not hold.
+*
+* Holdings are the one dataset with no single INDEPENDENTSYMBOL column; they
+* carry one per exchange. The getters take no exchange, so try NSE and then
+* BSE.
 */
 string readHoldingColumn(string pseudoAccount, string symbol, uint columnIndex) {
-	return atReadColumn(pseudoAccount, AT_DS_HOLDINGS, symbol, 5, (int) columnIndex);
+	int row = atFindRowByName(pseudoAccount, AT_DS_HOLDINGS,
+		"INDEPENDENTSYMBOLNSE", symbol);
+
+	if(row == 0) {
+		row = atFindRowByName(pseudoAccount, AT_DS_HOLDINGS,
+			"INDEPENDENTSYMBOLBSE", symbol);
+	}
+
+	if(row == 0) {
+		return "";
+	}
+
+	return atReadRowColumn(pseudoAccount, AT_DS_HOLDINGS, row, (int) columnIndex);
 }
 
 /*
@@ -1648,6 +1639,182 @@ double getHoldingLtp(string pseudoAccount, string symbol) {
 */
 double getHoldingCurrentValue(string pseudoAccount, string symbol) {
 	return StringToDouble(readHoldingColumn(pseudoAccount, symbol, 22));
+}
+
+/*****************************************************************************
+*
+* PORTFOLIO BY NAME -- the recommended way to read a portfolio.
+*
+* The get...() functions above still work and are not going away. They come
+* from the file based library, so each one takes the whole identity of a row
+* and looks that row up again, and each one addresses its field by a column
+* NUMBER. Twenty fields means twenty lookups, and a column number is only
+* correct until the server's CSV changes shape.
+*
+* These read by NAME instead, and find the row once:
+*
+*     string h = atFindHolding(AT_ACCOUNT, "NSE", "IOC");
+*     if(atFound(h)) {
+*         double qty  = atNum(h, "QUANTITY");
+*         string isin = atText(h, "ISIN");
+*     }
+*
+* atFound() matters. A holding you do not have and a lookup that is broken both
+* read as 0, and telling them apart is exactly what was missing when the
+* holdings bug above went unnoticed.
+*
+* Field names are the column names in the server's CSV header, case does not
+* matter: QUANTITY, PNL, ISIN, PRODUCT, LTP, AVGPRICE, STATUS, TRADETYPE,
+* NETQUANTITY, BUYAVGPRICE, and so on. An unknown name returns blank rather
+* than the wrong field.
+*
+*****************************************************************************/
+
+/*
+* A row handle: which account, which dataset, which row. Held as text so it can
+* be passed around like any other value.
+*/
+string atHandle(string pseudoAccount, string dataset, int row) {
+	return pseudoAccount + AT_PIPE + dataset + AT_PIPE + IntegerToString(row);
+}
+
+/*
+* True when a find...() actually found something.
+*/
+bool atFound(string handle) {
+	return handle != "";
+}
+
+/*
+* One field of a found row, as text. Blank for an unknown field or a handle
+* that found nothing.
+*/
+string atText(string handle, string fieldName) {
+	if(handle == "") {
+		return "";
+	}
+
+	return atFieldByName(atPipeField(handle, 1), atPipeField(handle, 2),
+		(int) StringToInteger(atPipeField(handle, 3)), fieldName);
+}
+
+/*
+* The same, as a number.
+*/
+double atNum(string handle, string fieldName) {
+	return StringToDouble(atText(handle, fieldName));
+}
+
+/*
+* Finds one holding. Exchange decides which independent symbol column is
+* matched, so BSE holdings are addressable too.
+*/
+string atFindHolding(string pseudoAccount, string exchange, string symbol) {
+	string field = "INDEPENDENTSYMBOLNSE";
+
+	if(StringCompare("BSE", exchange, false) == 0) {
+		field = "INDEPENDENTSYMBOLBSE";
+	}
+
+	int row = atFindRowByName(pseudoAccount, AT_DS_HOLDINGS, field, symbol);
+
+	if(row == 0) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_HOLDINGS, row);
+}
+
+/*
+* Finds one order by the broker's order id -- what placeOrder() returns.
+*/
+string atFindOrder(string pseudoAccount, string orderId) {
+	int row = atFindRowByName(pseudoAccount, AT_DS_ORDERS, "ID", orderId);
+
+	if(row == 0) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_ORDERS, row);
+}
+
+/*
+* Finds one position. A position has no id of its own, so it is identified by
+* category, type, exchange and symbol together.
+*/
+string atFindPosition(string pseudoAccount, string category, string type,
+	string exchange, string symbol) {
+
+	int row = atFindRowByName4(pseudoAccount, AT_DS_POSITIONS,
+		"CATEGORY", category, "TYPE", type,
+		"INDEPENDENTEXCHANGE", exchange, "INDEPENDENTSYMBOL", symbol);
+
+	if(row == 0) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_POSITIONS, row);
+}
+
+/*
+* Finds one margin category: EQUITY, COMMODITY or ALL.
+*/
+string atFindMargin(string pseudoAccount, string category) {
+	int row = atFindRowByName(pseudoAccount, AT_DS_MARGINS, "CATEGORY", category);
+
+	if(row == 0) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_MARGINS, row);
+}
+
+/*
+* How many rows a portfolio holds, and the n-th of them, 1 based.
+*
+* There was no way to WALK a portfolio before: every getter needed a symbol you
+* already knew, so a strategy could not ask "what am I holding?" or "what is
+* still open?". These make that possible:
+*
+*     for(int i = 1; i <= atPositionCount(AT_ACCOUNT); i++) {
+*         string p = atPositionAt(AT_ACCOUNT, i);
+*         Print(atText(p, "INDEPENDENTSYMBOL"), " ", atText(p, "NETQUANTITY"));
+*     }
+*/
+int atHoldingCount(string pseudoAccount) {
+	return atRowCount(pseudoAccount, AT_DS_HOLDINGS);
+}
+
+int atPositionCount(string pseudoAccount) {
+	return atRowCount(pseudoAccount, AT_DS_POSITIONS);
+}
+
+int atOrderCount(string pseudoAccount) {
+	return atRowCount(pseudoAccount, AT_DS_ORDERS);
+}
+
+string atHoldingAt(string pseudoAccount, int n) {
+	if(n < 1 || n > atRowCount(pseudoAccount, AT_DS_HOLDINGS)) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_HOLDINGS, n);
+}
+
+string atPositionAt(string pseudoAccount, int n) {
+	if(n < 1 || n > atRowCount(pseudoAccount, AT_DS_POSITIONS)) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_POSITIONS, n);
+}
+
+string atOrderAt(string pseudoAccount, int n) {
+	if(n < 1 || n > atRowCount(pseudoAccount, AT_DS_ORDERS)) {
+		return "";
+	}
+
+	return atHandle(pseudoAccount, AT_DS_ORDERS, n);
 }
 
 #endif

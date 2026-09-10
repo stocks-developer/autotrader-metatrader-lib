@@ -88,6 +88,16 @@ int AT_HTTP_TIMEOUT_COMMAND = 30000;
 int AT_HTTP_MAX_ROWS = 2000;
 
 /******************************************************************************
+* How far to read along the header when resolving a column name.
+*
+* The widest dataset the server sends is orders, at 33 columns, so this is
+* generous. It is only a stop so that a malformed header cannot spin a chart:
+* the scan ends at the first empty column anyway.
+******************************************************************************/
+
+int AT_HTTP_MAX_COLUMNS = 60;
+
+/******************************************************************************
 * Print every request and reply to the Experts tab.
 *
 * Useful when setting up, noisy afterwards. It does NOT print your API key.

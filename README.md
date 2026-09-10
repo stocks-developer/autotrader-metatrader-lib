@@ -77,6 +77,53 @@ The library also supports bracket and cover orders, cancel, and trading into mul
 
 Full step-by-step guide: **[MetaTrader library setup](https://stocksdeveloper.in/documentation/client-setup/metatrader-library/)**. Get your API key from your [account settings](https://webx.stocksdeveloper.in/register).
 
+### Reading your portfolio
+
+Find the row once, then read its fields by name:
+
+```cpp
+string holdRow = atFindHolding(AT_ACCOUNT, "NSE", "IOC");
+
+if(atFound(holdRow))
+{
+    double qty  = atNum(holdRow, "QUANTITY");
+    string isin = atText(holdRow, "ISIN");
+}
+```
+
+There is a finder for each kind of row:
+
+| Finder | Identified by |
+|---|---|
+| `atFindHolding(account, exchange, symbol)` | exchange and symbol |
+| `atFindPosition(account, category, type, exchange, symbol)` | all four together |
+| `atFindOrder(account, orderId)` | the broker's order id |
+| `atFindMargin(account, category)` | `EQUITY`, `COMMODITY` or `ALL` |
+
+`atFound()` tells you whether the row exists. This matters: a holding you do not have and a lookup that went wrong both read as `0`, and only `atFound()` separates them.
+
+Field names are the column names your data already uses, and case does not matter — `QUANTITY`, `PNL`, `LTP`, `AVGPRICE`, `ISIN`, `STATUS`, `TRADETYPE`, `NETQUANTITY`, `BUYAVGPRICE` and so on. Ask for a name that does not exist and you get a blank, never a different field by mistake.
+
+You can also walk the whole portfolio, which the older functions cannot do:
+
+```cpp
+for(int i = 1; i <= atPositionCount(AT_ACCOUNT); i++)
+{
+    string p = atPositionAt(AT_ACCOUNT, i);
+    Print(atText(p, "INDEPENDENTSYMBOL"), " ", atText(p, "NETQUANTITY"));
+}
+```
+
+`atHoldingCount()` / `atHoldingAt()` and `atOrderCount()` / `atOrderAt()` work the same way.
+
+The older `getHoldingQuantity()`, `getPositionNetQuantity()`, `getOrderStatus()` style functions still work exactly as before and are not going away. Use these when you want to read several fields of the same row, or when you need to go through a portfolio without knowing the symbols in advance.
+
+### Reading an order back after you place or change it
+
+An order does not update the instant you place, modify or cancel it. Your broker's order book takes a few seconds to catch up, and the library re-uses portfolio data for a couple of seconds so that a busy chart does not send the same request twenty times.
+
+So a read taken immediately after a change can show the previous state. That is not a failure — it means *not updated yet*. Give it a few seconds before deciding an order did not work, and never send it a second time on the strength of a blank read.
+
 ## Pricing and free trial
 
 - **Free 1-month trial** on supported brokers, with every feature included.
