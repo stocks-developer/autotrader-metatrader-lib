@@ -22,7 +22,7 @@
 * 1. Allow the address. Tools -> Options -> Expert Advisors -> "Allow WebRequest
 *    for listed URL", then add:
 *
-*        https://api.stocksdeveloper.in
+*        https://apix.stocksdeveloper.in
 *
 *    Without it MetaTrader blocks every request and nothing is sent.
 *

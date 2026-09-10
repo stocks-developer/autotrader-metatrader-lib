@@ -56,7 +56,7 @@ MetaTrader talks to AutoTrader Web directly. Works with **MetaTrader 5**, and wi
 1. Sign in at [webx.stocksdeveloper.in](https://webx.stocksdeveloper.in/) and go to **Tools -> Library**.
 2. Download the MetaTrader library. Your API key is already inside the download, which is why it asks for your password.
 3. In MetaTrader open **File -> Open Data Folder**, then extract the zip into the `MQL5` folder (`MQL4` on MetaTrader 4).
-4. Allow our address: **Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL**, then add `https://api.stocksdeveloper.in`. Without this MetaTrader blocks every request and nothing is sent.
+4. Allow our address: **Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL**, then add `https://apix.stocksdeveloper.in`. Without this MetaTrader blocks every request and nothing is sent.
 5. Include the library at the top of your strategy:
 
 ```cpp

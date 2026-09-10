@@ -37,7 +37,7 @@ string AT_API_KEY = "<API_KEY>";
 * sent. The library says so in plain words the first time it happens.
 ******************************************************************************/
 
-string AT_BASE_URL = "https://api.stocksdeveloper.in";
+string AT_BASE_URL = "https://apix.stocksdeveloper.in";
 
 /******************************************************************************
 * How long the library re-uses portfolio data before asking the server again,

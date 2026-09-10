@@ -17,7 +17,7 @@
 *
 * 2. Allow the address in MetaTrader:
 *    Tools -> Options -> Expert Advisors -> "Allow WebRequest for listed
-*    URL", then add https://api.stocksdeveloper.in
+*    URL", then add https://apix.stocksdeveloper.in
 *
 * 3. Run this as an Expert Advisor, not as an indicator, and not in the
 *    Strategy Tester -- MetaTrader does not allow web requests from
