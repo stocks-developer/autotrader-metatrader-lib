@@ -1780,6 +1780,8 @@ string atFindMargin(string pseudoAccount, string category) {
 *         string p = atPositionAt(AT_ACCOUNT, i);
 *         Print(atText(p, "INDEPENDENTSYMBOL"), " ", atText(p, "NETQUANTITY"));
 *     }
+*
+* A row number outside 1..count returns an empty row and prints SD-ERR-MT-ROW.
 */
 int atHoldingCount(string pseudoAccount) {
 	return atRowCount(pseudoAccount, AT_DS_HOLDINGS);
@@ -1793,8 +1795,23 @@ int atOrderCount(string pseudoAccount) {
 	return atRowCount(pseudoAccount, AT_DS_ORDERS);
 }
 
+/*
+* A row number outside 1..count is a mistake in the loop that asked for it, not
+* missing data, so it is reported rather than passed back quietly as an empty row.
+*/
+void atReportMissingRow(string functionName, string pseudoAccount, int n, int rowCount) {
+	string rowRange = rowCount > 0
+		? "Rows are numbered from 1 to " + IntegerToString(rowCount) + "."
+		: "There are no rows.";
+
+	Print("AutoTrader: SD-ERR-MT-ROW: ", functionName, "(", pseudoAccount, ", ", n,
+		") asked for a row that does not exist. ", rowRange);
+}
+
 string atHoldingAt(string pseudoAccount, int n) {
-	if(n < 1 || n > atRowCount(pseudoAccount, AT_DS_HOLDINGS)) {
+	int rowCount = atRowCount(pseudoAccount, AT_DS_HOLDINGS);
+	if(n < 1 || n > rowCount) {
+		atReportMissingRow("atHoldingAt", pseudoAccount, n, rowCount);
 		return "";
 	}
 
@@ -1802,7 +1819,9 @@ string atHoldingAt(string pseudoAccount, int n) {
 }
 
 string atPositionAt(string pseudoAccount, int n) {
-	if(n < 1 || n > atRowCount(pseudoAccount, AT_DS_POSITIONS)) {
+	int rowCount = atRowCount(pseudoAccount, AT_DS_POSITIONS);
+	if(n < 1 || n > rowCount) {
+		atReportMissingRow("atPositionAt", pseudoAccount, n, rowCount);
 		return "";
 	}
 
@@ -1810,7 +1829,9 @@ string atPositionAt(string pseudoAccount, int n) {
 }
 
 string atOrderAt(string pseudoAccount, int n) {
-	if(n < 1 || n > atRowCount(pseudoAccount, AT_DS_ORDERS)) {
+	int rowCount = atRowCount(pseudoAccount, AT_DS_ORDERS);
+	if(n < 1 || n > rowCount) {
+		atReportMissingRow("atOrderAt", pseudoAccount, n, rowCount);
 		return "";
 	}
 
