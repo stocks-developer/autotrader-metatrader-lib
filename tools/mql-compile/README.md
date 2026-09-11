@@ -69,3 +69,29 @@ needs no API key, and places no orders.
 `MQL5/Experts` in MetaTrader's data folder, attach it to any chart as a Script,
 and read the Experts tab. It prints one line per check and a `PASS` or `FAIL`
 summary at the end.
+
+`tests/at-livecheck-direct.mq5` is the other half. The self test never touches
+the network; this one makes a single real request — it reads margins for one
+account and prints what came back — so between them they separate "the library
+handles data correctly" from "the library can reach the server at all".
+
+**It places nothing.** There is no `placeOrder`, `modifyOrder`, `cancelOrder` or
+square off anywhere in it, and margins is the lightest read there is: one
+dataset, one request.
+
+Unlike the self test it needs real credentials, so it cannot run unattended:
+
+- an API key in `Include/autotrader-http-config.mqh`,
+- `https://apix.stocksdeveloper.in` in **Tools → Options → Expert Advisors →
+  Allow WebRequest for listed URL**, without which every request fails with
+  error 4014,
+- an account logged in at the broker, otherwise the read still reaches the
+  server but every figure is zero.
+
+Copy it into `MQL5/Experts`, set **Pseudo account** in the inputs, and attach it
+to any chart **as an Expert Advisor** — not as an indicator and not in the
+Strategy Tester, because MetaTrader refuses web requests from both.
+
+Equity, commodity and all carrying the same figure is normal: many brokers pool
+their segments, and the *all* category is a copy of that pooled figure rather
+than a sum, since summing pooled segments would count the same money twice.
