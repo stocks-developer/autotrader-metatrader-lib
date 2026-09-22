@@ -47,17 +47,27 @@ string AT_BASE_URL = "https://apix.stocksdeveloper.in";
 * Each one is answered from the copy held here, so a tick costs one request per
 * dataset instead of twenty.
 *
-* Lowering these does NOT get you fresher data. The server allows roughly one
-* portfolio request per second per account and answers anything faster than
-* that from its own copy, so a smaller number here buys extra requests and the
-* same numbers. Raise them if you trade slowly and want less traffic.
+* Every request counts toward your API limit. Portfolio reads by this library
+* have their own allowance of about one request per second per account,
+* averaged over five minutes. These defaults use at most about three quarters
+* of it. Each chart running the library keeps its own copy, so two Expert
+* Advisors on one account make twice the requests.
+*
+* Lowering these does NOT get you fresher data. The server refreshes each
+* dataset from your broker about once a second at most and answers anything
+* faster from its own copy, so a smaller number here buys extra requests and
+* the same numbers. Raise them if you trade slowly and want less traffic.
+*
+* Positions are refreshed less often than orders. A strategy usually needs to
+* see an order fill quickly, and for a live price the chart's own price feed
+* is faster and costs no requests.
 *
 * Holdings barely move during the day, which is why they are refreshed rarely.
 ******************************************************************************/
 
 int AT_TTL_ORDERS = 2;
 
-int AT_TTL_POSITIONS = 2;
+int AT_TTL_POSITIONS = 5;
 
 int AT_TTL_MARGINS = 30;
 
