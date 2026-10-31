@@ -127,6 +127,11 @@ int OnInit()
 
 	ArrayResize(maHeldSymbol, ArraySize(maAccounts));
 
+	// A new string array element is NULL, and NULL != "": set them empty
+	for(int i = 0; i < ArraySize(maHeldSymbol); i++) {
+		maHeldSymbol[i] = "";
+	}
+
 	maFastHandle = iMA(_Symbol, _Period, MA_FAST, 0, MODE_EMA, PRICE_CLOSE);
 	maSlowHandle = iMA(_Symbol, _Period, MA_SLOW, 0, MODE_EMA, PRICE_CLOSE);
 
@@ -146,16 +151,32 @@ int OnInit()
 	Print("AutoTrader: strategy started on ", _Symbol, ", orders for ", what, " in ",
 		ArraySize(maAccounts), " account(s)");
 
+	// A chart fed by a data vendor's plugin (a custom symbol) may never call
+	// OnTick, so a one-second timer checks for a new candle too
+	EventSetTimer(1);
+
 	return(INIT_SUCCEEDED);
   }
 
 void OnDeinit(const int reason)
   {
+	EventKillTimer();
 	IndicatorRelease(maFastHandle);
 	IndicatorRelease(maSlowHandle);
   }
 
 void OnTick()
+  {
+	maOnCandle();
+  }
+
+void OnTimer()
+  {
+	maOnCandle();
+  }
+
+/* Acts once when a new candle starts, whether a tick or the timer sees it first. */
+void maOnCandle()
   {
 	if(maSquareOffTimeReached()) {
 		return;

@@ -96,6 +96,9 @@ input int PANEL_OPT_LOTS = 1;				// Option lots per account (lots, not units)
 #define PANEL_OPT_SQOFF PANEL_PREFIX + "SquareOffOptions"
 #define PANEL_INFO PANEL_PREFIX + "Info"
 #define PANEL_RESULT PANEL_PREFIX + "Result"
+#define PANEL_BACK PANEL_PREFIX + "Back"
+#define PANEL_LINE_CHARS 60	// a chart label shows at most 63 characters
+#define PANEL_LINE_HEIGHT 20
 
 string panelAccounts[];
 
@@ -105,6 +108,13 @@ string panelCallSymbol[];
 string panelPutSymbol[];
 
 Exchange panelOptExchange = NSE;
+
+/* Top of the text lines under the buttons, and how many lines each part has. */
+int panelLabelY = 70;
+
+int panelInfoLines = 0;
+
+int panelResultLines = 0;
 
 int OnInit()
   {
@@ -133,21 +143,28 @@ int OnInit()
 	ArrayResize(panelCallSymbol, total);
 	ArrayResize(panelPutSymbol, total);
 
+	// A new string array element is NULL, and NULL != "": set them empty
+	for(int i = 0; i < total; i++) {
+		panelCallSymbol[i] = "";
+		panelPutSymbol[i] = "";
+	}
+
 	panelButton(PANEL_BUY, "BUY", 10, 30, 100, clrWhite, C'16,150,90');
 	panelButton(PANEL_SELL, "SELL", 120, 30, 100, clrWhite, C'200,50,50');
-	panelButton(PANEL_SQOFF, "SQUARE OFF", 230, 30, 100, clrBlack, C'240,200,40');
+	panelButton(PANEL_SQOFF, "SQUARE OFF", 230, 30, 110, clrBlack, C'240,200,40');
 
-	int labelY = 70;
+	panelLabelY = 70;
 
 	if(panelHasOptions()) {
 		panelButton(PANEL_CALL, "BUY CALL", 10, 72, 100, clrWhite, C'16,150,90');
 		panelButton(PANEL_PUT, "BUY PUT", 120, 72, 100, clrWhite, C'200,50,50');
-		panelButton(PANEL_OPT_SQOFF, "SQUARE OFF OPTIONS", 230, 72, 160, clrBlack, C'240,200,40');
-		labelY = 112;
+		panelButton(PANEL_OPT_SQOFF, "SQUARE OFF OPTIONS", 230, 72, 180, clrBlack, C'240,200,40');
+		panelLabelY = 112;
 	}
 
-	panelLabel(PANEL_INFO, panelDescribe(), labelY);
-	panelLabel(PANEL_RESULT, "Ready.", labelY + 22);
+	panelBackdrop();
+	panelInfoLines = panelLines(PANEL_INFO, panelDescribe(), panelLabelY, clrSilver);
+	panelResult("Ready.", true);
 
 	ChartRedraw();
 
@@ -447,12 +464,12 @@ string panelDescribe()
 			", stoploss " + DoubleToString(PANEL_STOPLOSS, 2)
 		: EnumToString(AT_PRODUCT_TYPE);
 
-	string text = EnumToString(AT_EXCHANGE) + " " + AT_SYMBOL + "  |  qty " +
-		IntegerToString(AT_QUANTITY) + "  |  " + kind + "  |  " +
+	string text = EnumToString(AT_EXCHANGE) + " " + AT_SYMBOL + " | qty " +
+		IntegerToString(AT_QUANTITY) + " | " + kind + " | " +
 		IntegerToString(ArraySize(panelAccounts)) + " account(s)";
 
 	if(panelHasOptions()) {
-		text += "  |  options: " + PANEL_OPT_UNDERLYING + " " + PANEL_OPT_STRIKE + " " +
+		text += " | options: " + PANEL_OPT_UNDERLYING + " " + PANEL_OPT_STRIKE + " " +
 			PANEL_OPT_EXPIRY + ", " + IntegerToString(PANEL_OPT_LOTS) + " lot(s)";
 	}
 
@@ -461,9 +478,19 @@ string panelDescribe()
 
 void panelResult(const string text, const bool allGood)
   {
-	ObjectSetString(0, PANEL_RESULT, OBJPROP_TEXT, text);
-	ObjectSetInteger(0, PANEL_RESULT, OBJPROP_COLOR, allGood ? clrLimeGreen : clrOrangeRed);
+	// "Ready." is the only good result before a click; it stays grey
+	color shade = (text == "Ready.") ? clrSilver : (allGood ? clrLimeGreen : clrOrangeRed);
+	panelResultLines = panelLines(PANEL_RESULT, text,
+		panelLabelY + panelInfoLines * PANEL_LINE_HEIGHT, shade);
+	panelFitBackdrop();
 	Print("AutoTrader: panel: ", text);
+  }
+
+/* Positions and sizes are in screen pixels, but fonts grow with Windows display
+   scaling: scale the layout too, or at 150% / 200% the text no longer fits. */
+int panelPx(const int px)
+  {
+	return (int)MathRound(px * TerminalInfoInteger(TERMINAL_SCREEN_DPI) / 96.0);
   }
 
 void panelButton(const string name, const string text, const int x, const int y,
@@ -471,10 +498,10 @@ void panelButton(const string name, const string text, const int x, const int y,
   {
 	ObjectCreate(0, name, OBJ_BUTTON, 0, 0, 0);
 	ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-	ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-	ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-	ObjectSetInteger(0, name, OBJPROP_XSIZE, width);
-	ObjectSetInteger(0, name, OBJPROP_YSIZE, 34);
+	ObjectSetInteger(0, name, OBJPROP_XDISTANCE, panelPx(x));
+	ObjectSetInteger(0, name, OBJPROP_YDISTANCE, panelPx(y));
+	ObjectSetInteger(0, name, OBJPROP_XSIZE, panelPx(width));
+	ObjectSetInteger(0, name, OBJPROP_YSIZE, panelPx(34));
 	ObjectSetString(0, name, OBJPROP_TEXT, text);
 	ObjectSetString(0, name, OBJPROP_FONT, "Arial Bold");
 	ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 10);
@@ -483,12 +510,107 @@ void panelButton(const string name, const string text, const int x, const int y,
 	ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
   }
 
+/* A dark box behind the text lines, so they stay readable over the candles. */
+void panelBackdrop()
+  {
+	ObjectCreate(0, PANEL_BACK, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_XDISTANCE, panelPx(4));
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_YDISTANCE, panelPx(panelLabelY - 3));
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_BGCOLOR, C'24,24,24');
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_COLOR, C'24,24,24');
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_SELECTABLE, false);
+  }
+
+/* Fits the dark box to the text lines (the result lines change after each click). */
+void panelFitBackdrop()
+  {
+	TextSetFont("Arial", -90);	// the labels' 9 points, scaled like them
+	uint width = 0, height = 0, longest = 0;
+
+	for(int i = 0; i < panelInfoLines + panelResultLines; i++) {
+		string name = (i < panelInfoLines) ? PANEL_INFO + IntegerToString(i) :
+			PANEL_RESULT + IntegerToString(i - panelInfoLines);
+		TextGetSize(ObjectGetString(0, name, OBJPROP_TEXT), width, height);
+		longest = MathMax(longest, width);
+	}
+
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_XSIZE, (int)longest + panelPx(14));
+	ObjectSetInteger(0, PANEL_BACK, OBJPROP_YSIZE,
+		panelPx((panelInfoLines + panelResultLines) * PANEL_LINE_HEIGHT + 6));
+  }
+
+/*
+* Shows text as labels prefix0, prefix1... from y down, in lines of at most
+* PANEL_LINE_CHARS (MetaTrader cuts a label at 63 characters). Lines break at
+* " | " first, and inside a part only when the part alone is too long.
+* Returns the number of lines.
+*/
+int panelLines(const string prefix, const string text, const int y, const color shade)
+  {
+	string lines[];
+	string line = "";
+	string parts = text;
+	StringReplace(parts, " | ", "|");
+
+	string part[];
+	int count = StringSplit(parts, '|', part);
+
+	for(int i = 0; i < count; i++) {
+		string longer = (line == "") ? part[i] : line + " | " + part[i];
+
+		if(StringLen(longer) <= PANEL_LINE_CHARS) {
+			line = longer;
+			continue;
+		}
+
+		if(line != "") {
+			panelAddLine(lines, line);
+		}
+
+		line = "";
+		string words[];
+		int wordCount = StringSplit(part[i], ' ', words);
+
+		for(int k = 0; k < wordCount; k++) {
+			string next = (line == "") ? words[k] : line + " " + words[k];
+
+			if(StringLen(next) > PANEL_LINE_CHARS && line != "") {
+				panelAddLine(lines, line);
+				line = words[k];
+			} else {
+				line = next;
+			}
+		}
+	}
+
+	if(line != "") {
+		panelAddLine(lines, line);
+	}
+
+	ObjectsDeleteAll(0, prefix);
+
+	for(int i = 0; i < ArraySize(lines); i++) {
+		panelLabel(prefix + IntegerToString(i), lines[i], y + i * PANEL_LINE_HEIGHT);
+		ObjectSetInteger(0, prefix + IntegerToString(i), OBJPROP_COLOR, shade);
+	}
+
+	return ArraySize(lines);
+  }
+
+void panelAddLine(string &lines[], const string line)
+  {
+	ArrayResize(lines, ArraySize(lines) + 1);
+	lines[ArraySize(lines) - 1] = line;
+  }
+
 void panelLabel(const string name, const string text, const int y)
   {
 	ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
 	ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-	ObjectSetInteger(0, name, OBJPROP_XDISTANCE, 10);
-	ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+	ObjectSetInteger(0, name, OBJPROP_XDISTANCE, panelPx(10));
+	ObjectSetInteger(0, name, OBJPROP_YDISTANCE, panelPx(y));
 	ObjectSetString(0, name, OBJPROP_TEXT, text);
 	ObjectSetString(0, name, OBJPROP_FONT, "Arial");
 	ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 9);
