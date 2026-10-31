@@ -112,3 +112,22 @@ Strategy Tester, because MetaTrader refuses web requests from both.
 Equity, commodity and all carrying the same figure is normal: many brokers pool
 their segments, and the *all* category is a copy of that pooled figure rather
 than a sum, since summing pooled segments would count the same money twice.
+
+## MetaTrader behaviour to design around (found in dry runs, 2026-10-31)
+
+- **A custom symbol fed by a program (`CustomTicksAdd`, as data-vendor plugins do)
+  never calls an Expert Advisor's `OnTick`**: the bars grow, the EA hears nothing.
+  A sample that acts on candles must also check on a timer (`at-ma-crossover`
+  uses `EventSetTimer(1)`), or it does nothing on most Indian users' charts.
+- **Chart objects are sized in screen pixels, fonts are not**: at 150% / 200%
+  Windows scaling, button text overflows unless positions and sizes are scaled by
+  `TERMINAL_SCREEN_DPI / 96` (`panelPx` in `at-trade-panel`).
+- **A chart label shows at most 63 characters**; longer text is cut silently. Wrap it.
+- **A new element of a string array is NULL, and NULL != ""**: set them to `""` after
+  `ArrayResize`, or a "nothing here" test passes for empty slots.
+- **MetaTrader compiles every `.mq5` without an `.ex5` when it starts**, so the
+  download (sources only) needs no compile step from the user.
+- **Never recompile an EA while MetaTrader is running it**: the terminal stopped taking
+  input and ignored WM_CLOSE until killed. Close the terminal first. The terminal also
+  sometimes ignores WM_CLOSE after running a while; `taskkill /F` works, but then it does
+  not save the chart profile.
