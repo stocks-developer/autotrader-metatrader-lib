@@ -56,7 +56,9 @@ enum TradeType {
 enum Variety {
    REGULAR = 0,   			// Regular Order
    BO = 1,  					// Bracket Order
-   CO = 2	  					// Cover Order
+   CO = 2,	  					// Cover Order
+   AT_BO = 3,				// AutoTrader Bracket Order
+   AT_CO = 4				// AutoTrader Cover Order
 };
 
 enum Validity {

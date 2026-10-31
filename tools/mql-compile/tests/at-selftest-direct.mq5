@@ -299,6 +299,66 @@ void OnStart() {
 	atCheck("getOrderStatus once the rows arrive",
 		getOrderStatus(later, "26091000179573"), "OPEN");
 
+	/************************** PLACE ORDER COMMAND ***********************/
+
+	/*
+	* The server reads the variety from column 4 and refuses a name it does
+	* not know, so AT_BO must go out spelled exactly that way, with the target,
+	* stoploss and trailing stoploss in columns 13 to 15.
+	*/
+	string atBo = placeOrderCsv(AT_BO, "ACC1", NSE, "SBIN", BUY, LIMIT,
+		INTRADAY, 1, 950, 0, 5, 2.5, 1, 0, DAY, false, "1789125713000", -1, "");
+	string boCols[];
+	StringSplit(atBo, ',', boCols);
+
+	atCheck("AT_BO command name", boCols[0], AT_PLACE_ORDER_CMD);
+	atCheck("AT_BO variety", boCols[3], "AT_BO");
+	atCheck("AT_BO product", boCols[8], "INTRADAY");
+	atCheckNum("AT_BO target", StringToDouble(boCols[12]), 5);
+	atCheckNum("AT_BO stoploss", StringToDouble(boCols[13]), 2.5);
+	atCheckNum("AT_BO trailing stoploss", StringToDouble(boCols[14]), 1);
+	atCheckNum("AT_BO column count", ArraySize(boCols), 21);
+
+	string atCo = placeOrderCsv(AT_CO, "ACC1", NSE, "SBIN", SELL, MARKET,
+		INTRADAY, 1, 0, 0, 0, 3, 0, 0, DAY, false, "1789125713000", -1, "");
+	string coCols[];
+	StringSplit(atCo, ',', coCols);
+
+	atCheck("AT_CO variety", coCols[3], "AT_CO");
+	atCheckNum("AT_CO trigger price is zero", StringToDouble(coCols[11]), 0);
+	atCheckNum("AT_CO target is zero", StringToDouble(coCols[12]), 0);
+	atCheckNum("AT_CO stoploss", StringToDouble(coCols[13]), 3);
+
+	/************************* OPTION CONTRACT REPLY **********************/
+
+	/*
+	* The option lookup answers SD-OK|exchange|symbol|lotSize|strike|expiry|spot.
+	* The symbol is what gets traded and later squared off, and the lot size
+	* turns lots into units, so both must come out exactly.
+	*/
+	bool optOk = atParseOptionReply(
+		"SD-OK|NSE|NIFTY_14-JUL-2026_CE_23900|75|23900|2026-07-14|23912.35\n");
+
+	atCheckTrue("option reply parses", optOk, true);
+	atCheck("option symbol", atOptionSymbol, "NIFTY_14-JUL-2026_CE_23900");
+	atCheckTrue("option exchange is NSE", atOptionExchange == NSE, true);
+	atCheckNum("option lot size", atOptionLotSize, 75);
+	atCheckNum("option strike", atOptionStrike, 23900);
+	atCheck("option expiry", atOptionExpiry, "2026-07-14");
+	atCheckNum("option spot used (trailing newline trimmed)", atOptionSpotUsed, 23912.35);
+
+	atCheckTrue("SENSEX reply on BSE parses", atParseOptionReply(
+		"SD-OK|BSE|SENSEX_16-JUL-2026_PE_80000|20|80000|2026-07-16|80010.5"), true);
+	atCheckTrue("option exchange is BSE", atOptionExchange == BSE, true);
+
+	atCheckTrue("error reply is refused", atParseOptionReply(
+		"SD-ERROR|SD-ERR-CSV-BADREQ|user|Unknown strike rule: ATM++"), false);
+	atCheck("refused reply clears the symbol", atOptionSymbol, "");
+	atCheckTrue("zero lot size is refused", atParseOptionReply(
+		"SD-OK|NSE|NIFTY_14-JUL-2026_CE_23900|0|23900|2026-07-14|23912.35"), false);
+	atCheckTrue("MCX exchange is refused", atParseOptionReply(
+		"SD-OK|MCX|CRUDEOIL_17-JUL-2026_CE_6000|100|6000|2026-07-17|6010"), false);
+
 	/******************************* RESULT *******************************/
 
 	Print("");

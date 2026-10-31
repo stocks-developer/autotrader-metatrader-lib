@@ -67,8 +67,25 @@ needs no API key, and places no orders.
 
 `check-mql.sh` compiles it along with everything else. To run it, copy it into
 `MQL5/Experts` in MetaTrader's data folder, attach it to any chart as a Script,
-and read the Experts tab. It prints one line per check and a `PASS` or `FAIL`
+and read the Experts tab.
+
+To run it without clicking, compile it in the data folder
+(`MetaEditor64.exe /compile:<file> /log:<log>`), then start the terminal with
+`terminal64.exe /config:<ini>`, where the ini holds `[StartUp]`,
+`Script=AutoTraderWeb\at-selftest-direct`, `Symbol=EURUSD`, `Period=H1` and
+`ShutdownTerminal=1`. The terminal runs the script and closes; the result is in
+`MQL5/Logs/<date>.log` (UTF-16). Write the ini with an editor, not `printf`:
+the shell turns `\a` into a control character. Copy only the changed library
+files into the data folder: its `autotrader-http-config.mqh` holds a real key. It prints one line per check and a `PASS` or `FAIL`
 summary at the end.
+
+**Never start an order-placing Expert Advisor this way (`[StartUp] Expert=`).**
+MetaTrader saves an EA started from the ini into the chart profile, so it runs
+again on every later launch, including the relaunch after an automatic update.
+A place-check EA did exactly this on 2026-10-31 and placed two real orders
+(both rejected). Use `Script=` for anything unattended; before any launch, read
+the journal for `expert ... loaded` lines; and remove an EA from the chart when
+you are done with it.
 
 `tests/at-livecheck-direct.mq5` is the other half. The self test never touches
 the network; this one makes a single real request — it reads margins for one

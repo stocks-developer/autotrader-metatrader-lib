@@ -187,6 +187,13 @@ string orderString(Variety variety, string symbol, TradeType tradeType,
 		result = "Bracket Order [" + conciseForm + "|" +
 			"t=" + t + "|" + "sl=" + sl + "|" +
 			"tr. sl=" + tsl + "]";
+	} else if (variety == AT_BO) {
+		result = "AutoTrader Bracket Order [" + conciseForm + "|" +
+			"t=" + t + "|" + "sl=" + sl + "|" +
+			"tr. sl=" + tsl + "]";
+	} else if (variety == AT_CO) {
+		result = "AutoTrader Cover Order [" + conciseForm + "|" +
+			"sl=" + sl + "|" + "tr. sl=" + tsl + "]";
 	} else if (variety == CO) {
 		result = "Cover Order [" + conciseForm + "|" + "trigger=" +
 			trigPrc +  "]";
@@ -274,6 +281,67 @@ string placeOrderAdvanced(Variety variety, string account,
 	string publishTime = IntegerToString(
 		convertDateTimeToMillisSinceEpoch(TimeLocal()));
 
+	string csv = placeOrderCsv(variety, account, exchange, symbol,
+		tradeType, orderType, productType, quantity,
+		price, triggerPrice, target, stoploss, trailingStoploss,
+		disclosedQuantity, validity, amo, publishTime, strategyId, comments);
+
+	if(AT_DEBUG) {
+		Print("Order csv data: ", csv);
+	}
+
+	string status = atSendCommand(csv);
+
+	if(status == AT_HTTP_OK) {
+		orderId = atPipeField(atHttpResponse, 2);
+
+		saveLastOrderTradeType(account, symbol, tradeType);
+		saveLastOrderTime(account, symbol, TimeLocal());
+
+		Print("Order placed: [", orderStr, "], order id: ", orderId);
+
+		return orderId;
+	}
+
+	if(atHttpAction == AT_ACTION_CHECK) {
+		/*
+		* The order reached the broker and nobody confirmed it. This is the one
+		* outcome that must not come back as a plain failure: a strategy that
+		* treats blank as "it did not go" would place the same order a second
+		* time, and both could fill.
+		*
+		* The repeat order guard is armed as if the order had succeeded, so an
+		* unattended chart cannot re-send it on the next tick either.
+		*/
+		saveLastOrderTradeType(account, symbol, tradeType);
+		saveLastOrderTime(account, symbol, TimeLocal());
+
+		Print("AutoTrader: SD-ERR-MT-PLACE: Order NOT CONFIRMED: [", orderStr, "]. ", atHttpMessage);
+		Print("AutoTrader: SD-ERR-MT-PLACE: Do not place it again. Check your order book first.");
+
+		return AT_UNCONFIRMED;
+	}
+
+	Print("AutoTrader: SD-ERR-MT-PLACE: Order placement failed: [", orderStr, "]. ", atHttpMessage);
+
+	return "";
+}
+
+/*
+* The place order command exactly as the server reads it.
+*
+* Kept apart from the sending so the self test can check every column without
+* making a request.
+*/
+string placeOrderCsv(Variety variety, string account,
+	Exchange exchange, string symbol,
+	TradeType tradeType, OrderType orderType,
+	ProductType productType, int quantity,
+	double price, double triggerPrice, double target,
+	double stoploss, double trailingStoploss,
+	int disclosedQuantity, Validity validity, bool amo,
+	string publishTime, int strategyId, string comments) {
+
 	// Convert data into text in order to build the command
 	string priceStr = DoubleToString(price, AT_PRICE_PRECISION);
 	string triggerPriceStr = DoubleToString(triggerPrice, AT_PRICE_PRECISION);
@@ -318,45 +386,7 @@ string placeOrderAdvanced(Variety variety, string account,
 		IntegerToString(strategyId)	+ AT_COMMA +
 		comments;
 
-	if(AT_DEBUG) {
-		Print("Order csv data: ", csv);
-	}
-
-	string status = atSendCommand(csv);
-
-	if(status == AT_HTTP_OK) {
-		orderId = atPipeField(atHttpResponse, 2);
-
-		saveLastOrderTradeType(account, symbol, tradeType);
-		saveLastOrderTime(account, symbol, TimeLocal());
-
-		Print("Order placed: [", orderStr, "], order id: ", orderId);
-
-		return orderId;
-	}
-
-	if(atHttpAction == AT_ACTION_CHECK) {
-		/*
-		* The order reached the broker and nobody confirmed it. This is the one
-		* outcome that must not come back as a plain failure: a strategy that
-		* treats blank as "it did not go" would place the same order a second
-		* time, and both could fill.
-		*
-		* The repeat order guard is armed as if the order had succeeded, so an
-		* unattended chart cannot re-send it on the next tick either.
-		*/
-		saveLastOrderTradeType(account, symbol, tradeType);
-		saveLastOrderTime(account, symbol, TimeLocal());
-
-		Print("AutoTrader: SD-ERR-MT-PLACE: Order NOT CONFIRMED: [", orderStr, "]. ", atHttpMessage);
-		Print("AutoTrader: SD-ERR-MT-PLACE: Do not place it again. Check your order book first.");
-
-		return AT_UNCONFIRMED;
-	}
-
-	Print("AutoTrader: SD-ERR-MT-PLACE: Order placement failed: [", orderStr, "]. ", atHttpMessage);
-
-	return "";
+	return csv;
 }
 
 /*
@@ -414,8 +444,221 @@ string placeCoverOrder(string account, Exchange exchange, string symbol,
 
 }
 
+/*
+* A function to place AutoTrader bracket orders: an ordinary intraday entry,
+* with a target, a stoploss and an optional trailing stoploss watched by
+* AutoTrader Web. Works on every broker, including brokers with no bracket
+* order of their own. Returns the broker's order id on successful order
+* placement; otherwise returns blank or AT_UNCONFIRMED.
+*
+* target and stoploss are in rupees away from your entry price, and both are
+* required. trailingStoploss is the step the stop moves in; pass zero for a
+* stop that does not move. Pass zero triggerPrice unless your entry is a
+* stoploss order.
+*
+* Always intraday. Before the first one, agree to the terms once in AutoTrader
+* Web (pick AT_BO in the order window); until then it is rejected.
+*/
+string placeAutoTraderBracketOrder(string account, Exchange exchange, string symbol,
+	TradeType tradeType, OrderType orderType, int quantity,
+	double price, double triggerPrice, double target, double stoploss,
+	double trailingStoploss, bool validate) {
+
+	return placeOrderAdvanced(AT_BO, account, exchange, symbol,
+		tradeType, orderType, INTRADAY,
+		quantity, price, triggerPrice,
+		target, stoploss, trailingStoploss,
+		defaultDisclosedQuantity(), defaultValidity(), defaultAmo(),
+		defaultStrategyId(), defaultComments(), validate);
+
+}
+
+/*
+* A function to place AutoTrader cover orders: like the bracket order above,
+* with a stoploss and no target. Returns the broker's order id on successful
+* order placement; otherwise returns blank or AT_UNCONFIRMED.
+*
+* There is no triggerPrice. Unlike placeCoverOrder(), whose stop is an
+* absolute price, stoploss here is in rupees away from your entry price: a buy
+* filled at 180.50 with stoploss 2.5 is squared off at 178.00.
+*/
+string placeAutoTraderCoverOrder(string account, Exchange exchange, string symbol,
+	TradeType tradeType, OrderType orderType, int quantity,
+	double price, double stoploss, double trailingStoploss, bool validate) {
+
+	return placeOrderAdvanced(AT_CO, account, exchange, symbol,
+		tradeType, orderType, INTRADAY,
+		quantity, price, 0,
+		0, stoploss, trailingStoploss,
+		defaultDisclosedQuantity(), defaultValidity(), defaultAmo(),
+		defaultStrategyId(), defaultComments(), validate);
+
+}
+
 /*****************************************************************************/
 /************************ PLACE ORDER FUNCTIONS - END ************************/
+/*****************************************************************************/
+
+
+/*****************************************************************************/
+/*********************** OPTION ORDER FUNCTIONS - START **********************/
+/*****************************************************************************/
+
+/*
+* The contract found by the last resolveOptionContract() call. Read these after
+* it returns true: the symbol is what you square off later, so keep it.
+*/
+string atOptionSymbol = "";
+
+Exchange atOptionExchange = NSE;
+
+int atOptionLotSize = 0;
+
+double atOptionStrike = 0;
+
+/* yyyy-MM-dd */
+string atOptionExpiry = "";
+
+/* The underlying's price the strike was picked from. */
+double atOptionSpotUsed = 0;
+
+/*
+* Reads one option-contract reply into the atOption... values above:
+*
+*   SD-OK|<exchange>|<symbol>|<lotSize>|<strike>|<expiry>|<spotUsed>
+*
+* Returns false, with atHttpMessage saying why, for anything else. Kept apart
+* from the request so the self-test can check it without the network.
+*/
+bool atParseOptionReply(const string reply) {
+	atOptionSymbol = "";
+	atOptionLotSize = 0;
+
+	if(StringFind(reply, AT_SD_OK + "|") != 0) {
+		atHttpMessage = "Unexpected option-contract reply: " + reply;
+		return false;
+	}
+
+	Exchange exchange;
+	string exchangeText = atPipeField(reply, 2);
+	if(exchangeText == "NSE") {
+		exchange = NSE;
+	} else if(exchangeText == "BSE") {
+		exchange = BSE;
+	} else {
+		atHttpMessage = "Option-contract reply has an unknown exchange: " + reply;
+		return false;
+	}
+
+	string symbol = atPipeField(reply, 3);
+	int lotSize = (int) StringToInteger(atPipeField(reply, 4));
+
+	if(StringLen(symbol) == 0 || lotSize <= 0) {
+		atHttpMessage = "Option-contract reply has no symbol or lot size: " + reply;
+		return false;
+	}
+
+	atOptionExchange = exchange;
+	atOptionSymbol = symbol;
+	atOptionLotSize = lotSize;
+	atOptionStrike = StringToDouble(atPipeField(reply, 5));
+	atOptionExpiry = atPipeField(reply, 6);
+	atOptionSpotUsed = StringToDouble(atPipeField(reply, 7));
+
+	return true;
+}
+
+/*
+* Finds the option contract to trade, using AutoTrader Web's own option chain.
+* Places nothing. Returns true and fills the atOption... values above, or false
+* with the reason in atHttpMessage.
+*
+* underlying : NIFTY, BANKNIFTY, a stock symbol...
+* optionType : "CE" or "PE"
+* exchange   : NSE, or BSE for SENSEX
+* strike     : "ATM" (blank means ATM), "ATM+2", "ATM-1", "ITM1", "OTM2", or an
+*              exact strike such as "23900"
+* expiry     : "weekly" (blank means weekly), "next", "monthly", or a date
+*              such as "2026-07-14"
+* spotHint   : your chart's price of the underlying, used only if AutoTrader
+*              Web cannot get a live price. Pass 0 to never use it.
+*
+* Call it when you are about to place an order, never on every tick.
+*/
+bool resolveOptionContract(string account, Exchange exchange, string underlying,
+	string optionType, string strike, string expiry, double spotHint) {
+
+	string postBody = "api-key=" + atUrlEncode(AT_API_KEY) +
+		"&pseudoAccount=" + atUrlEncode(account) +
+		"&underlying=" + atUrlEncode(underlying) +
+		"&optionType=" + atUrlEncode(optionType) +
+		"&exchange=" + EnumToString(exchange);
+
+	if(StringLen(strike) > 0) {
+		postBody = postBody + "&strike=" + atUrlEncode(strike);
+	}
+
+	if(StringLen(expiry) > 0) {
+		postBody = postBody + "&expiry=" + atUrlEncode(expiry);
+	}
+
+	if(spotHint > 0) {
+		postBody = postBody + "&spotHint=" + DoubleToString(spotHint, 2);
+	}
+
+	atHttpTrace("option contract: " + underlying + " " + optionType + " " + strike + " " + expiry);
+
+	string reply = atHttpPost("/csv/option-contract", postBody, AT_HTTP_TIMEOUT_READ);
+	string status = atClassify(reply, false);
+	atRecordStatus(status, reply, false);
+
+	atHttpTrace("reply: " + reply);
+
+	if(status != AT_HTTP_OK || !atParseOptionReply(reply)) {
+		Print("AutoTrader: SD-ERR-MT-OPT: no option contract for ", underlying, " ",
+			optionType, " [", status, "] ", atHttpMessage);
+		atOptionSymbol = "";
+		return false;
+	}
+
+	Print("AutoTrader: SD-INF-MT-OPT: ", underlying, " ", optionType, " ", strike,
+		" -> ", atOptionSymbol, " (lot ", atOptionLotSize, ", expiry ", atOptionExpiry, ")");
+
+	return true;
+}
+
+/*
+* Buys or sells an option picked by strike rule, at market. lots is in LOTS,
+* not units: 1 means one lot, whatever the lot size is. Returns the broker's
+* order id on successful order placement; otherwise returns blank or
+* AT_UNCONFIRMED.
+*
+* The contract it traded stays in atOptionSymbol. To square it off later, use
+* that symbol, not a fresh lookup: by then "ATM" may be a different strike.
+*
+* See resolveOptionContract() for underlying, optionType, strike, expiry and
+* spotHint.
+*/
+string placeOptionOrder(string account, Exchange exchange, string underlying,
+	string optionType, string strike, string expiry, TradeType tradeType,
+	ProductType productType, int lots, double spotHint, bool validate) {
+
+	if(lots <= 0) {
+		Print("AutoTrader: SD-ERR-MT-OPT: lots must be 1 or more, got ", lots);
+		return "";
+	}
+
+	if(!resolveOptionContract(account, exchange, underlying, optionType, strike,
+		expiry, spotHint)) {
+		return "";
+	}
+
+	return placeOrder(account, atOptionExchange, atOptionSymbol, tradeType, MARKET,
+		productType, lots * atOptionLotSize, 0, 0, validate);
+}
+
+/*****************************************************************************/
+/************************ OPTION ORDER FUNCTIONS - END ***********************/
 /*****************************************************************************/
 
 
