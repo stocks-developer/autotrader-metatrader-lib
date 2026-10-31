@@ -20,7 +20,7 @@
 
 #include <autotrader-http.mqh>
 
-input string CHECK_ACCOUNT = "";	// Pseudo account (must be live)
+input string CHECK_ACCOUNT = "Pseudo Account";	// Pseudo account: your account's nickname (must be live)
 
 int checkRun = 0;
 
@@ -52,8 +52,8 @@ void OnStart() {
 		return;
 	}
 
-	if(CHECK_ACCOUNT == "") {
-		Print("FAIL -- set \"Pseudo account\" in the inputs to a live account");
+	if(CHECK_ACCOUNT == "" || CHECK_ACCOUNT == "Pseudo Account") {
+		Print("FAIL -- replace \"Pseudo Account\" in the inputs with your live account's nickname");
 		return;
 	}
 
