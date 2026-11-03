@@ -16,7 +16,10 @@ The **AutoTrader Web MetaTrader library** lets you place orders from your MT4 or
 - **Broker independent.** The same strategy trades on any broker AutoTrader Web supports, across 40+ Indian brokers. No broker-specific code.
 - **MT4 and MT5.** One library works with both platforms.
 - **Single or multi-account.** Send an order to one account or many at once.
-- **Full order control.** Regular, bracket and cover orders, plus cancel.
+- **Full order control.** Regular, bracket and cover orders, plus modify and cancel.
+- **Our own bracket and cover orders.** AutoTrader Web watches the target and stoploss, on every broker we support except InCred Equities, including brokers with no bracket order of their own. Intraday only.
+- **Option strike picker.** Trade an option from a signal on its index chart, without typing the option's symbol.
+- **Ready-made samples for MetaTrader 5.** Example scripts, a button panel and a sample strategy come with the download.
 - **Direct connection.** Your strategy talks to AutoTrader Web over the internet. There is nothing else to install and nothing that has to keep running.
 
 ## What is AutoTrader Web?
@@ -56,7 +59,7 @@ MetaTrader talks to AutoTrader Web directly. Works with **MetaTrader 5**, and wi
 1. Sign in at [webx.stocksdeveloper.in](https://webx.stocksdeveloper.in/) and go to **Tools -> Library**.
 2. Download the MetaTrader library. Your API key is already inside the download, which is why it asks for your password.
 3. In MetaTrader open **File -> Open Data Folder**, then extract the zip into the `MQL5` folder (`MQL4` on MetaTrader 4).
-4. Allow our address: **Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL**, then add `https://apix.stocksdeveloper.in`. Without this MetaTrader blocks every request and nothing is sent.
+4. Allow our address: **Tools -> Options -> Experts** (**Expert Advisors** on MetaTrader 4 and older MetaTrader 5 versions) **-> Allow WebRequest for listed URL**, then add `https://apix.stocksdeveloper.in`. Without this MetaTrader blocks every request and nothing is sent.
 5. Include the library at the top of your strategy:
 
 ```cpp
@@ -67,7 +70,7 @@ MetaTrader talks to AutoTrader Web directly. Works with **MetaTrader 5**, and wi
 
 Ready-made examples of every step are in the Navigator under **Scripts -> AutoTraderWeb** (first order, square off, options in many accounts, bracket order, modify and cancel).
 
-4. Place an order. The same call works on every supported broker:
+6. Place an order. The same call works on every supported broker:
 
 ```cpp
 string id = placeOrder(AT_ACCOUNT,
@@ -78,6 +81,44 @@ string id = placeOrder(AT_ACCOUNT,
 The library also supports bracket and cover orders, cancel, and trading into multiple accounts at once.
 
 Full step-by-step guide: **[MetaTrader library setup](https://stocksdeveloper.in/documentation/client-setup/metatrader-library/)**. Get your API key from your [account settings](https://webx.stocksdeveloper.in/register).
+
+### Our own bracket order
+
+```cpp
+string id = placeAutoTraderBracketOrder(AT_ACCOUNT,
+    AT_EXCHANGE, AT_SYMBOL, BUY, LIMIT,
+    AT_QUANTITY, 192, 0.0, 5, 2.5, 1, true);
+```
+
+The target, stoploss and trailing stoploss are **distances in rupees from your entry price**, not prices. `placeAutoTraderCoverOrder` works the same way, with a stoploss only. See [Place AutoTrader Bracket Order](https://stocksdeveloper.in/documentation/api/place-autotrader-bracket-order/) for every argument and the terms.
+
+### Picking an option's strike
+
+`resolveOptionContract` asks AutoTrader Web which contract your choice means. It places nothing. You then place the order on the contract it found:
+
+```cpp
+if(resolveOptionContract(AT_ACCOUNT, NSE, "NIFTY",
+    "CE", "ATM", "weekly", 0)) {
+    string id = placeOrder(AT_ACCOUNT, atOptionExchange,
+        atOptionSymbol, BUY, MARKET, INTRADAY,
+        1 * atOptionLotSize, 0, 0, true);
+}
+```
+
+Quantity is in units, so multiply the lots you want by `atOptionLotSize`. Keep the symbol to square off the same contract later: by then ATM may be a different strike. Every argument is in the [setup guide](https://stocksdeveloper.in/documentation/client-setup/metatrader-library/#option-order-by-strike-choice).
+
+### Ready-made samples
+
+In the Navigator under **Expert Advisors -> AutoTraderWeb**, for MetaTrader 5. In **Pseudo account**, several nicknames separated by commas (`ACC1,ACC2,ACC3`) place every order in all of those accounts.
+
+- **`at-trade-panel`:** BUY, SELL and SQUARE OFF buttons on the chart, no code needed. Fill in an option underlying such as NIFTY, and you also get BUY CALL, BUY PUT and SQUARE OFF OPTIONS. It asks before every click, by default.
+- **`at-ma-crossover`:** a moving average crossover that shows how to connect a strategy to the library. It is an example, not a recommendation: you write your own rules in its `atSignal()` function.
+
+> A chart fed by a data vendor's custom symbol can keep drawing new candles without ever calling `OnTick`, so a strategy that checks only there does nothing. Check on a timer as well, as `at-ma-crossover` does.
+
+### Video
+
+[Place automated orders directly from MetaTrader](https://youtu.be/29PcQWD7dUg) (17 min, live screen walkthrough, Hindi and English audio).
 
 ### Reading your portfolio
 
@@ -147,7 +188,6 @@ So a read taken immediately after a change can show the previous state. That is 
 | 📘 Documentation | https://stocksdeveloper.in/documentation/getting-started/ |
 | 🧩 API reference | https://stocksdeveloper.in/documentation/api/ |
 | ⚙️ MetaTrader library setup | https://stocksdeveloper.in/documentation/client-setup/metatrader-library/ |
-| 🖥️ MetaTrader library setup | https://stocksdeveloper.in/documentation/client-setup/metatrader-library/ |
 | 🆓 Start free (1-month trial) | https://webx.stocksdeveloper.in/register |
 | ✉️ Contact us | https://stocksdeveloper.in/contact/ |
 
