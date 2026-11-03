@@ -40,9 +40,10 @@ fi
 # the root it is given. That root does NOT have to be MetaTrader's own data
 # folder -- any directory laid out the same way will do, which is what keeps
 # this from needing a terminal or a logged in account.
-mkdir -p "$WORK/Include" "$WORK/Experts/AutoTraderWeb"
+mkdir -p "$WORK/Include" "$WORK/Experts/AutoTraderWeb" "$WORK/Scripts/AutoTraderWeb"
 cp "$REPO"/Include/*.mqh "$WORK/Include/"
 cp "$REPO"/Experts/AutoTraderWeb/*.mq5 "$WORK/Experts/AutoTraderWeb/"
+cp "$REPO"/Scripts/AutoTraderWeb/*.mq5 "$WORK/Scripts/AutoTraderWeb/"
 
 if [ -d "$REPO/tools/mql-compile/tests" ]; then
 	cp "$REPO"/tools/mql-compile/tests/*.mq5 "$WORK/Experts/AutoTraderWeb/" 2>/dev/null
@@ -53,7 +54,7 @@ ROOT_WIN=$(cygpath -w "$WORK" 2>/dev/null || echo "$WORK")
 failed=0
 checked=0
 
-for source in "$WORK"/Experts/AutoTraderWeb/*.mq5; do
+for source in "$WORK"/Experts/AutoTraderWeb/*.mq5 "$WORK"/Scripts/AutoTraderWeb/*.mq5; do
 	name=$(basename "$source")
 	log="$WORK/$name.log"
 

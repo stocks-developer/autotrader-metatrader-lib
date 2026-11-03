@@ -924,7 +924,7 @@ string getOrderExchangeId(string pseudoAccount, string orderId) {
 * Retrieve order's variety (REGULAR, BO, CO).
 */
 Variety getOrderVariety(string pseudoAccount, string orderId) {
-	Variety v;
+	Variety v = (Variety)0;
 	return StringToEnum(readOrderColumn(pseudoAccount, orderId, 6), v);
 }
 
@@ -932,7 +932,7 @@ Variety getOrderVariety(string pseudoAccount, string orderId) {
 * Retrieve order's (platform independent) exchange.
 */
 Exchange getOrderIndependentExchange(string pseudoAccount, string orderId) {
-	Exchange e;
+	Exchange e = (Exchange)0;
 	return StringToEnum(readOrderColumn(pseudoAccount, orderId, 7), e);
 }
 
@@ -947,7 +947,7 @@ string getOrderIndependentSymbol(string pseudoAccount, string orderId) {
 * Retrieve order's trade type (BUY, SELL).
 */
 TradeType getOrderTradeType(string pseudoAccount, string orderId) {
-	TradeType t;
+	TradeType t = (TradeType)0;
 	return StringToEnum(readOrderColumn(pseudoAccount, orderId, 9), t);
 }
 
@@ -955,7 +955,7 @@ TradeType getOrderTradeType(string pseudoAccount, string orderId) {
 * Retrieve order's order type (LIMIT, MARKET, STOP_LOSS, SL_MARKET).
 */
 OrderType getOrderOrderType(string pseudoAccount, string orderId) {
-	OrderType o;
+	OrderType o = (OrderType)0;
 	return StringToEnum(readOrderColumn(pseudoAccount, orderId, 10), o);
 }
 
@@ -963,7 +963,7 @@ OrderType getOrderOrderType(string pseudoAccount, string orderId) {
 * Retrieve order's product type (INTRADAY, DELIVERY, NORMAL).
 */
 ProductType getOrderProductType(string pseudoAccount, string orderId) {
-	ProductType p;
+	ProductType p = (ProductType)0;
 	return StringToEnum(readOrderColumn(pseudoAccount, orderId, 11), p);
 }
 
@@ -1021,7 +1021,7 @@ string getOrderStatusMessage(string pseudoAccount, string orderId) {
 * Retrieve order's validity (DAY, IOC).
 */
 Validity getOrderValidity(string pseudoAccount, string orderId) {
-	Validity v;
+	Validity v = (Validity)0;
 	return StringToEnum(readOrderColumn(pseudoAccount, orderId, 19), v);
 }
 

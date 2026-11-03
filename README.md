@@ -65,6 +65,8 @@ MetaTrader talks to AutoTrader Web directly. Works with **MetaTrader 5**, and wi
 
 > Run your strategy as an Expert Advisor or a Script. MetaTrader does not allow web requests from a custom indicator, and the Strategy Tester cannot make them at all.
 
+Ready-made examples of every step are in the Navigator under **Scripts -> AutoTraderWeb** (first order, square off, options in many accounts, bracket order, modify and cancel).
+
 4. Place an order. The same call works on every supported broker:
 
 ```cpp
