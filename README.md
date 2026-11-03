@@ -36,8 +36,8 @@ The **AutoTrader Web MetaTrader library** lets you place orders from your MT4 or
 
 ## Why traders and developers choose us
 
-- 🆓 **Free static IP included** with every account. Saves up to **₹500 per broker account per month** that other tools charge extra for.
-- 💸 **One of the lowest prices in the category.** **₹295 to ₹495 per account per month**, all taxes and the static IP included. No setup fee, no hidden charges.
+- 🌐 **Static IP from ₹100 a month**, taxes included, or your own IPv4 at no charge on IPv4 brokers. Every broker needs one.
+- 💸 **One of the lowest prices in the category.** **₹295 to ₹495 per account per month**, all taxes included. A static IP is a small add-on. No setup fee, no hidden charges.
 - ☁️ **Nothing to install for the platform.** Monitor and trade from your browser on PC or mobile, from anywhere.
 - 🔗 **40+ Indian brokers on one platform.** One of the widest broker coverages available.
 - 🔁 **Two ways to copy trade**, PMS and master-child, both included.
@@ -56,7 +56,7 @@ AutoTrader Web works with **40+ Indian brokers**:
 
 MetaTrader talks to AutoTrader Web directly. Works with **MetaTrader 5**, and with **MetaTrader 4 from build 600**.
 
-1. Sign in at [webx.stocksdeveloper.in](https://webx.stocksdeveloper.in/) and go to **Tools -> Library**.
+1. Sign in at [webx.stocksdeveloper.in](https://webx.stocksdeveloper.in/) and go to **Tools -> Client Libraries**.
 2. Download the MetaTrader library. Your API key is already inside the download, which is why it asks for your password.
 3. In MetaTrader open **File -> Open Data Folder**, then extract the zip into the `MQL5` folder (`MQL4` on MetaTrader 4).
 4. Allow our address: **Tools -> Options -> Experts** (**Expert Advisors** on MetaTrader 4 and older MetaTrader 5 versions) **-> Allow WebRequest for listed URL**, then add `https://apix.stocksdeveloper.in`. Without this MetaTrader blocks every request and nothing is sent.
@@ -172,7 +172,7 @@ So a read taken immediately after a change can show the previous state. That is 
 ## Pricing and free trial
 
 - **Free 1-month trial** on supported brokers, with every feature included.
-- Then **₹295 to ₹495 per account per month**. All taxes and a free static IP are included. No setup fee, no hidden charges.
+- Then **₹295 to ₹495 per account per month**. All taxes are included. A static IP is a small add-on, from ₹100 a month. No setup fee, no hidden charges.
 - [See full pricing](https://stocksdeveloper.in/pricing/) · [Start free](https://webx.stocksdeveloper.in/register)
 
 ## Documentation and links
